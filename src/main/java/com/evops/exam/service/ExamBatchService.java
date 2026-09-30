@@ -26,14 +26,18 @@ public class ExamBatchService {
     @Transactional
     public ExamBatch createBatch(BatchRequest request) {
         siteService.getSite(request.getSiteId());
+        validateWindow(request.getReviewStartAt(), request.getReviewEndAt());
         ExamBatch batch = new ExamBatch();
         batch.setCode(request.getCode().trim());
         batch.setName(request.getName().trim());
         batch.setSiteId(request.getSiteId());
+        batch.setProjectCode(normalizeProject(request.getProjectCode()));
         batch.setSubject(request.getSubject());
         batch.setExamDate(request.getExamDate());
         batch.setStartTime(request.getStartTime());
         batch.setEndTime(request.getEndTime());
+        batch.setReviewStartAt(request.getReviewStartAt());
+        batch.setReviewEndAt(request.getReviewEndAt());
         batch.setStatus(ExamConstants.BATCH_CREATED);
         batch.setRemark(request.getRemark());
         try {
@@ -42,6 +46,36 @@ public class ExamBatchService {
             throw new BusinessException("DUPLICATE_BATCH_CODE", "批次编码已存在：" + batch.getCode());
         }
         return batch;
+    }
+
+    /** 配置 / 调整复核窗口：窗口起止跟批次配置走，不写死；起止必须成对、起早于止。 */
+    @Transactional
+    public ExamBatch configureReviewWindow(Long batchId, java.time.LocalDateTime startAt,
+                                           java.time.LocalDateTime endAt) {
+        ExamBatch batch = getBatch(batchId);
+        validateWindow(startAt, endAt);
+        batch.setReviewStartAt(startAt);
+        batch.setReviewEndAt(endAt);
+        batchMapper.updateById(batch);
+        return batch;
+    }
+
+    private void validateWindow(java.time.LocalDateTime startAt, java.time.LocalDateTime endAt) {
+        boolean startMissing = startAt == null;
+        boolean endMissing = endAt == null;
+        if (startMissing != endMissing) {
+            throw new BusinessException("REVIEW_WINDOW_HALF", "复核窗口起止必须同时配置或同时留空");
+        }
+        if (!startMissing && !startAt.isBefore(endAt)) {
+            throw new BusinessException("REVIEW_WINDOW_RANGE", "复核窗口开始时间必须早于结束时间");
+        }
+    }
+
+    private String normalizeProject(String projectCode) {
+        if (projectCode == null || projectCode.trim().isEmpty()) {
+            return com.evops.grade.common.GradeConstants.PROJECT_DEFAULT;
+        }
+        return projectCode.trim().toUpperCase();
     }
 
     public List<ExamBatch> listBatches() {

@@ -234,6 +234,14 @@ public class RegistrationService {
         return registrationMapper.selectOne(new QueryWrapper<Registration>().eq("reg_no", regNo.trim()));
     }
 
+    /** 按报名号批量查（报名号全局唯一），供成绩录入等场景定位名册。 */
+    public List<Registration> findByRegNos(List<String> regNos) {
+        if (regNos == null || regNos.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return registrationMapper.selectList(new QueryWrapper<Registration>().in("reg_no", regNos));
+    }
+
     public Map<Long, Registration> loadByIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return new HashMap<>();

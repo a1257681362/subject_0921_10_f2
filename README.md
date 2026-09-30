@@ -71,3 +71,37 @@
 - `POST /api/workspace/versions/{no}/select`：版本选择（只切当前标记，业务数据不变）。
 - `POST /api/workspace/versions/{no}/rollback?remark=`：按该版本快照还原，生成新的 ROLLBACK 版本，原版本保留。
 - `GET  /api/workspace/versions/events?versionNo=`：CREATE/SELECT/ROLLBACK 事件链。
+
+## 出分等级与成绩复核工作区（grade-1）
+
+把"出分定级"和"成绩复核"两段在 evops-base 串成一条线：**卷面分按分数段落等级、规则带版本 → 窗口跟批次配置 → 窗口期提复核 → 结论回写通知、改分留痕**。两个岗共用同一套规则版本与窗口口径，不再打架。本批次先跑助考项目（`projectCode=ZHUKAO`）。
+
+### 8. 批次项目与复核窗口（不写死）
+
+- 建批次 `POST /api/batches` 可带 `projectCode`（缺省 `DEFAULT`）与 `reviewStartAt` / `reviewEndAt`。
+- `POST /api/batches/{id}/review-window`：单独配置 / 调整窗口（起止必须成对、起早于止）。
+- `GET  /api/batches/{id}/review-window`：窗口起止与当前状态 `NOT_CONFIGURED / NOT_OPENED / OPEN / CLOSED`，附各状态复核计数。
+
+### 9. 等级规则模块（规则 + 版本 + 状态）
+
+- `POST /api/grade-rules`、`GET /api/grade-rules?projectCode=`：规则按项目建档（可带 `subject` 按科目细分，留空为项目通用），`maxScore` 为满分。
+- `POST /api/grade-rules/{ruleId}/versions`：建草稿版本，提交分数段 `bands:[{minScore,maxScore,grade}]`（左闭右开；段段相连不重叠不缺口；首段从 0 起、末段到满分止，否则拒收）。
+- `GET  /api/grade-rules/{ruleId}/versions`、`GET /api/grade-rules/versions/{versionId}`。
+- `POST /api/grade-rules/versions/{versionId}/publish`：**DRAFT→ACTIVE**，发布即冻结分数段，并自动把同规则旧生效版置 **DISABLED**（同规则同时刻仅一版生效）。
+- `POST /api/grade-rules/versions/{versionId}/disable`：人工停用生效版。
+- `POST /api/grade-rules/versions/{versionId}/trial`：`{"score":72}` 按版本试算等级，不写成绩。
+- 定级只认项目当前 ACTIVE 版本（优先科目精确匹配，其次通用规则）；成绩行永久记下 `ruleVersionNo`，规则以后升级不改变历史口径。
+
+### 10. 成绩录入与定级
+
+- `POST /api/scores/import/preview` → `POST /api/scores/import`：按批次批量录卷面分（按报名号定位名册，须属于本批次）。预检逐条列可录入/跳过与定级结果、规则版本；执行时任一不通过**整批拒收、不落半条**，已录成绩不允许重复导入（改分必须走复核）。
+- `GET  /api/scores/batch/{batchId}`、`GET /api/scores/{id}`。
+- `GET  /api/scores/change-logs?batchId=`、`GET /api/scores/{id}/change-logs`：改分前后留痕（只追加）。
+
+### 11. 成绩复核（窗口校验 / 超窗自动关闭 / 结论回写通知）
+
+- `POST /api/reviews/apply`：`{"scoreId":...}` 或 `{"batchId":...,"regNo":...}` 提交复核。仅窗口 **OPEN** 可提交；未配置 / 未开始 / 已关闭分别返回可读原因（`REVIEW_WINDOW_*`）；同一成绩处理中不可重复提交；成绩置 `REVIEWING`。
+- `POST /api/reviews/{id}/conclusion`：`{"approved":true,"newScore":85,"conclusion":"..."}` 复核通过——按**原定级规则版本**重算等级、改分，前后分数/等级写入复核单和改分日志，并发站内通知；`{"approved":false,"conclusion":"..."}` 驳回维持原分，同样通知。
+- 超窗自动关闭：窗口（批次配置的 `reviewEndAt`）过后仍 `SUBMITTED` 的申请，定时任务（每分钟，`evops.review.close-cron` 可调）自动置 `CLOSED`、成绩解锁、通知学员；也可 `POST /api/reviews/close-expired` 手动立即执行。
+- `GET /api/reviews?status=`、`GET /api/reviews/batch/{batchId}?status=`、`GET /api/reviews/{id}`。
+- 通知：`GET /api/notifications?regNo=&unreadOnly=`、`POST /api/notifications/{id}/read`（本版站内落库，短信等外发渠道下版再接）。
