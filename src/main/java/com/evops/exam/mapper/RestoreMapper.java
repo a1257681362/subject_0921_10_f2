@@ -8,6 +8,13 @@ import com.evops.exam.entity.FinalConclusion;
 import com.evops.exam.entity.Registration;
 import com.evops.exam.entity.RegistrationCorrection;
 import com.evops.exam.entity.StageResult;
+import com.evops.grade.entity.GradeBatchConfig;
+import com.evops.grade.entity.GradeNotification;
+import com.evops.grade.entity.GradeRule;
+import com.evops.grade.entity.GradeRuleVersion;
+import com.evops.grade.entity.ReviewRequest;
+import com.evops.grade.entity.ScoreChangeLog;
+import com.evops.grade.entity.ScoreRecord;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -25,6 +32,27 @@ public interface RestoreMapper {
 
     @Delete("DELETE FROM t_final_conclusion")
     void clearConclusions();
+
+    @Delete("DELETE FROM t_grade_notification")
+    void clearGradeNotifications();
+
+    @Delete("DELETE FROM t_review_request")
+    void clearReviews();
+
+    @Delete("DELETE FROM t_score_change_log")
+    void clearScoreChangeLogs();
+
+    @Delete("DELETE FROM t_score_record")
+    void clearScoreRecords();
+
+    @Delete("DELETE FROM t_grade_batch_config")
+    void clearGradeBatchConfigs();
+
+    @Delete("DELETE FROM t_grade_rule_version")
+    void clearGradeRuleVersions();
+
+    @Delete("DELETE FROM t_grade_rule")
+    void clearGradeRules();
 
     @Delete("DELETE FROM t_stage_result")
     void clearStageResults();
@@ -96,6 +124,60 @@ public interface RestoreMapper {
             + "#{operator},#{concludedAt},#{createBy},#{createTime},#{updateBy},#{updateTime})")
     void insertConclusion(FinalConclusion fc);
 
+    @Insert("INSERT INTO t_grade_rule (id, code, name, project_code, status, current_version_id, remark, "
+            + "create_by, create_time, update_by, update_time) VALUES "
+            + "(#{id},#{code},#{name},#{projectCode},#{status},#{currentVersionId},#{remark},"
+            + "#{createBy},#{createTime},#{updateBy},#{updateTime})")
+    void insertGradeRule(GradeRule r);
+
+    @Insert("INSERT INTO t_grade_rule_version (id, rule_id, version_no, status, min_score, max_score, bands_json, "
+            + "published_by, published_at, remark, create_by, create_time, update_by, update_time) VALUES "
+            + "(#{id},#{ruleId},#{versionNo},#{status},#{minScore},#{maxScore},#{bandsJson},"
+            + "#{publishedBy},#{publishedAt},#{remark},"
+            + "#{createBy},#{createTime},#{updateBy},#{updateTime})")
+    void insertGradeRuleVersion(GradeRuleVersion v);
+
+    @Insert("INSERT INTO t_grade_batch_config (id, batch_id, project_code, rule_id, window_status, "
+            + "score_release_at, window_start_at, window_end_at, auto_closed, closed_by, closed_at, close_reason, "
+            + "create_by, create_time, update_by, update_time) VALUES "
+            + "(#{id},#{batchId},#{projectCode},#{ruleId},#{windowStatus},"
+            + "#{scoreReleaseAt},#{windowStartAt},#{windowEndAt},#{autoClosed},#{closedBy},#{closedAt},#{closeReason},"
+            + "#{createBy},#{createTime},#{updateBy},#{updateTime})")
+    void insertGradeBatchConfig(GradeBatchConfig c);
+
+    @Insert("INSERT INTO t_score_record (id, batch_id, registration_id, raw_score, grade_level, grade_label, "
+            + "rule_version_id, status, remark, create_by, create_time, update_by, update_time) VALUES "
+            + "(#{id},#{batchId},#{registrationId},#{rawScore},#{gradeLevel},#{gradeLabel},"
+            + "#{ruleVersionId},#{status},#{remark},"
+            + "#{createBy},#{createTime},#{updateBy},#{updateTime})")
+    void insertScoreRecord(ScoreRecord s);
+
+    @Insert("INSERT INTO t_score_change_log (id, score_record_id, batch_id, registration_id, change_type, "
+            + "old_raw_score, old_grade_level, new_raw_score, new_grade_level, rule_version_id, review_id, reason, "
+            + "operator, changed_at, create_by, create_time, update_by, update_time) VALUES "
+            + "(#{id},#{scoreRecordId},#{batchId},#{registrationId},#{changeType},"
+            + "#{oldRawScore},#{oldGradeLevel},#{newRawScore},#{newGradeLevel},#{ruleVersionId},#{reviewId},"
+            + "#{reason},#{operator},#{changedAt},"
+            + "#{createBy},#{createTime},#{updateBy},#{updateTime})")
+    void insertScoreChangeLog(ScoreChangeLog l);
+
+    @Insert("INSERT INTO t_review_request (id, batch_id, score_record_id, registration_id, status, request_reason, "
+            + "contact_phone, final_score, final_grade_level, final_grade_label, conclusion_remark, concluded_by, "
+            + "concluded_at, notified_at, window_start_at, window_end_at, submitted_at, "
+            + "create_by, create_time, update_by, update_time) VALUES "
+            + "(#{id},#{batchId},#{scoreRecordId},#{registrationId},#{status},#{requestReason},"
+            + "#{contactPhone},#{finalScore},#{finalGradeLevel},#{finalGradeLabel},#{conclusionRemark},"
+            + "#{concludedBy},#{concludedAt},#{notifiedAt},#{windowStartAt},#{windowEndAt},#{submittedAt},"
+            + "#{createBy},#{createTime},#{updateBy},#{updateTime})")
+    void insertReview(ReviewRequest r);
+
+    @Insert("INSERT INTO t_grade_notification (id, batch_id, registration_id, review_id, score_record_id, category, "
+            + "title, content, status, phone, operator, sent_at, create_by, create_time, update_by, update_time) "
+            + "VALUES (#{id},#{batchId},#{registrationId},#{reviewId},#{scoreRecordId},#{category},"
+            + "#{title},#{content},#{status},#{phone},#{operator},#{sentAt},"
+            + "#{createBy},#{createTime},#{updateBy},#{updateTime})")
+    void insertGradeNotification(GradeNotification n);
+
     // 显式插 id 后必须把 IDENTITY 序列推到最大 id 之上，否则后续新增会主键冲突
     @Select("SELECT COALESCE(MAX(id),0) FROM t_exam_site")
     long maxSiteId();
@@ -121,6 +203,27 @@ public interface RestoreMapper {
     @Select("SELECT COALESCE(MAX(id),0) FROM t_final_conclusion")
     long maxConclusionId();
 
+    @Select("SELECT COALESCE(MAX(id),0) FROM t_grade_rule")
+    long maxGradeRuleId();
+
+    @Select("SELECT COALESCE(MAX(id),0) FROM t_grade_rule_version")
+    long maxGradeRuleVersionId();
+
+    @Select("SELECT COALESCE(MAX(id),0) FROM t_grade_batch_config")
+    long maxGradeBatchConfigId();
+
+    @Select("SELECT COALESCE(MAX(id),0) FROM t_score_record")
+    long maxScoreRecordId();
+
+    @Select("SELECT COALESCE(MAX(id),0) FROM t_score_change_log")
+    long maxScoreChangeLogId();
+
+    @Select("SELECT COALESCE(MAX(id),0) FROM t_review_request")
+    long maxReviewId();
+
+    @Select("SELECT COALESCE(MAX(id),0) FROM t_grade_notification")
+    long maxGradeNotificationId();
+
     @Update("ALTER TABLE t_exam_site ALTER COLUMN id RESTART WITH ${value}")
     void restartSite(@Param("value") long value);
 
@@ -144,4 +247,25 @@ public interface RestoreMapper {
 
     @Update("ALTER TABLE t_final_conclusion ALTER COLUMN id RESTART WITH ${value}")
     void restartConclusion(@Param("value") long value);
+
+    @Update("ALTER TABLE t_grade_rule ALTER COLUMN id RESTART WITH ${value}")
+    void restartGradeRule(@Param("value") long value);
+
+    @Update("ALTER TABLE t_grade_rule_version ALTER COLUMN id RESTART WITH ${value}")
+    void restartGradeRuleVersion(@Param("value") long value);
+
+    @Update("ALTER TABLE t_grade_batch_config ALTER COLUMN id RESTART WITH ${value}")
+    void restartGradeBatchConfig(@Param("value") long value);
+
+    @Update("ALTER TABLE t_score_record ALTER COLUMN id RESTART WITH ${value}")
+    void restartScoreRecord(@Param("value") long value);
+
+    @Update("ALTER TABLE t_score_change_log ALTER COLUMN id RESTART WITH ${value}")
+    void restartScoreChangeLog(@Param("value") long value);
+
+    @Update("ALTER TABLE t_review_request ALTER COLUMN id RESTART WITH ${value}")
+    void restartReview(@Param("value") long value);
+
+    @Update("ALTER TABLE t_grade_notification ALTER COLUMN id RESTART WITH ${value}")
+    void restartGradeNotification(@Param("value") long value);
 }
